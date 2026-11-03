@@ -7,4 +7,4 @@
 
 #define eprintf(...) fprintf (stderr, __VA_ARGS__) // used to print on stderr
 
-void chacha20(char *str);
+char    *chacha20(char *str);
