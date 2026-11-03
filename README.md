@@ -19,5 +19,5 @@ make re        # fclean + make
 ## Usage
 
 ```bash
-./woody_woodpacker command [flags] [file/string]
+./woody_woodpacker [elf64 binary file]
 ```
