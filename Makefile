@@ -1,28 +1,32 @@
 NAME = woody_woodpacker
+
 SRC =   src/main.c \
         src/chacha20.c
 
-OBJ = $(SRC:.c=.o)
-CXX = cc
-CXXFLAGS = -Wall -Wextra -Werror -g
-MAKEFLAGS += --silent -j
+OBJ = $(patsubst src/%.c,obj/%.o,$(SRC))
+
+CC = cc
+CFLAGS = -Wall -Wextra -Werror -g
+
+MAKEFLAGS += --silent
 
 all: $(NAME)
 
 $(NAME): $(OBJ)
-	$(CXX) $(OBJ) -o $(NAME)
+	$(CC) $(OBJ) -o $(NAME)
 	echo "build done."
 
+obj/%.o: src/%.c
+	mkdir -p obj
+	$(CC) $(CFLAGS) -c $< -o $@
+
 clean:
-	@rm -f $(OBJ)
+	rm -rf obj
 	echo "object(s) cleaned."
 
 fclean: clean
-	@rm -f $(NAME)
+	rm -f $(NAME)
 
-re:
-	$(MAKE) fclean
-	$(MAKE) all
-	$(MAKE) clean
+re: fclean all
 
 .PHONY: all clean fclean re
