@@ -1,6 +1,7 @@
 NAME = woody_woodpacker
 SRC =   src/main.c \
-        src/chacha20.c
+        src/chacha20.c \
+				src/parser.c
 
 OBJ = $(SRC:.c=.o)
 CXX = cc
