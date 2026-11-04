@@ -6,5 +6,7 @@ int main(int argc, char **argv) {
         return (1);
     }
 
+    parse_elf(argv[1]);
+
     return (0);
 }
