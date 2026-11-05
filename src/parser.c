@@ -57,24 +57,24 @@ static bool is_elf64(unsigned char *buffer, size_t len) {
     return 1;
 }
 
-void    parse_elf(const char *path) {
+unsigned char* parse_elf(const char *path) {
     int fd = open(path, O_RDONLY);
     if (fd < 0) {
         perror("Error opening file");
-        return;
+        return NULL;
     }
 
     size_t file_size;
     unsigned char *mapped_data = map_file(fd, &file_size);
     if (mapped_data == MAP_FAILED) {
         printf("mmap failed\n");
-        return;
+        return NULL;
     }
 
     if (is_elf64(mapped_data, file_size) == false) {
         printf("Yikes! It is not an elf\n");
-        return;
+        return NULL;
     }
 
-    printf("It's a lot of work to do\n");
+    return mapped_data;
 }
