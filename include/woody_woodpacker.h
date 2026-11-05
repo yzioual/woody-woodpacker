@@ -7,9 +7,9 @@
 #include <sys/syscall.h>
 #include <stdint.h>
 
-// import libft here ?
+// import libft here ? I don't think we should at least for now :)
 
 #define eprintf(...) fprintf (stderr, __VA_ARGS__) // used to print on stderr
 
 char    *chacha20(unsigned char *data, size_t len);
-void    parse_elf(const char *);
+unsigned char* parse_elf(const char *path);
