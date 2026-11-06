@@ -8,7 +8,7 @@
 #include <sys/syscall.h>
 #include <sys/mman.h>
 
-static size_t filesize(int fd) {
+size_t get_file_size(int fd) {
     if (fd < 0) {
         return -1;
     }
@@ -22,11 +22,11 @@ static size_t filesize(int fd) {
     return -1;
 }
 
-static unsigned char *map_file(int fd, size_t *out_len) {
+unsigned char *map_file(int fd, size_t *out_len) {
     unsigned char* data = NULL;
-    *out_len = filesize(fd);
+    *out_len = get_file_size(fd);
 
-    data = mmap(NULL, *out_len, PROT_READ, MAP_PRIVATE, fd, 0);
+    data = mmap(NULL, *out_len, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
     if (!data) {
         perror("open/mmap");
         return data;
@@ -57,21 +57,20 @@ static bool is_elf64(unsigned char *buffer, size_t len) {
     return 1;
 }
 
-unsigned char* parse_elf(const char *path) {
+unsigned char* parse_elf(const char *path, size_t *file_size) {
     int fd = open(path, O_RDONLY);
     if (fd < 0) {
         perror("Error opening file");
         return NULL;
     }
 
-    size_t file_size;
-    unsigned char *mapped_data = map_file(fd, &file_size);
+    unsigned char *mapped_data = map_file(fd, file_size);
     if (mapped_data == MAP_FAILED) {
         printf("mmap failed\n");
         return NULL;
     }
 
-    if (is_elf64(mapped_data, file_size) == false) {
+    if (is_elf64(mapped_data, *file_size) == false) {
         printf("Yikes! It is not an elf\n");
         return NULL;
     }

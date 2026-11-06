@@ -11,5 +11,7 @@
 
 #define eprintf(...) fprintf (stderr, __VA_ARGS__) // used to print on stderr
 
-char    *chacha20(unsigned char *data, size_t len);
-unsigned char* parse_elf(const char *path);
+char    *chacha20(unsigned char *, size_t);
+size_t get_file_size(int);
+unsigned char* parse_elf(const char *, size_t*);
+unsigned char *map_file(int, size_t*);
