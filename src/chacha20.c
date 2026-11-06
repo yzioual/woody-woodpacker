@@ -22,7 +22,7 @@ void    print_key(const unsigned char *str, size_t size) {
 
 
 // function not mine -> wikipedia page
-void chacha_block(uint32_t out[16], uint32_t const in[16])
+void    chacha_block(uint32_t out[16], uint32_t const in[16])
 {
 	int         i;
 	uint32_t    x[16];
@@ -46,10 +46,20 @@ void chacha_block(uint32_t out[16], uint32_t const in[16])
 		out[i] = x[i] + in[i];
 }
 
-uint32_t    *to_words_chacha20(const unsigned char *rand_key, const unsigned char *rand_nonce, uint32_t *out) {
-    const unsigned char constant_initial_state[16] = "expand 32-byte k"; // yes it's the real constant for the algorithm.
-    uint32_t            counter = COUNTER_START;
+uint32_t    bytes_to_word_le(const unsigned char *p) {
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8)
+         | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
 
+// maybe bugs in this one, don't have time to test
+void    to_words_chacha20(const unsigned char *rand_key, const unsigned char *rand_nonce, uint32_t *out) {
+    const unsigned char constant_initial_state[16] = "expand 32-byte k"; // yes it's the real constant for the algorithm.
+    size_t i = 0; // to iterate throug out;
+
+    for (int index = 0; index < 16; index += 4) out[i++] = bytes_to_word_le(constant_initial_state + index);
+    for (int index = 0; index < 32; index += 4) out[i++] = bytes_to_word_le(rand_key + index);
+    out[i++] = COUNTER_START;
+    for (int index = 0; index < 24; index += 4) out[i++] = bytes_to_word_le(rand_nonce + index);
 }
 
 
@@ -62,7 +72,6 @@ uint32_t    *to_words_chacha20(const unsigned char *rand_key, const unsigned cha
  * uint32_t x[16];
 */
 char    *chacha20(unsigned char *data, size_t len) {
-
     unsigned char   rand_key[KEY_SIZE]; // chacha20 key
     unsigned char   rand_nonce[NONCE_SIZE]; // can be random or public, in our case he's random
 
@@ -77,8 +86,9 @@ char    *chacha20(unsigned char *data, size_t len) {
     uint32_t ribbon[16];
     for (int i = 0; i < -1; i++) { // ! not -1
         chacha_block(ribbon, words);
+        // turns ribbon into 64 bytes array, more few things and it will be done
         words[15]++;
     }
 
-    return (str); // ! temporary return value
+    return (data); // ! temporary return value
 }
