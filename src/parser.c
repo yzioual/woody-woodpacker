@@ -27,9 +27,9 @@ unsigned char *map_file(int fd, size_t *out_len) {
     *out_len = get_file_size(fd);
 
     data = mmap(NULL, *out_len, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
-    if (!data) {
+    if (data == MAP_FAILED) {
         perror("open/mmap");
-        return data;
+        return NULL;
     }
 
     return data;

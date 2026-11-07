@@ -8,7 +8,6 @@
 #include <string.h>
 #include <sys/mman.h>
 #define PAGE_SIZE 0x1000
-#define START_OFFSET 0xe3
 
 static  size_t find_placeholder(unsigned char *buf, size_t len, uint64_t marker) {
     for (size_t i = 0; i + 8 <= len; i++) {
@@ -117,7 +116,7 @@ int main(int argc, char **argv) {
         }
     }
     uint64_t stub_vaddr = (highest_end + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
-    uint64_t stub_entry_vaddr = stub_vaddr + START_OFFSET;
+    uint64_t stub_entry_vaddr = stub_vaddr; // _start is at offset 0 (first function in stub.c)
 
 
     uint64_t entry_offset_in_segment = ehdr->e_entry - target_ph->p_vaddr;
