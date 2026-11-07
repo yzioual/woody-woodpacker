@@ -9,7 +9,7 @@ CFLAGS = -Wall -Wextra -Werror -g
 
 MAKEFLAGS += --silent
 
-all: $(NAME) stub victim sample
+all: $(NAME) stub victim sample game
 
 $(NAME): $(OBJ)
 	$(CC) $(OBJ) -o $(NAME)
