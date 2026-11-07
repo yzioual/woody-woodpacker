@@ -1,7 +1,6 @@
 NAME = woody_woodpacker
 
-SRC =   src/main.c \
-				src/parser.c
+SRC =   src/main.c src/parser.c
 
 OBJ = $(patsubst src/%.c,obj/%.o,$(SRC))
 
@@ -10,7 +9,7 @@ CFLAGS = -Wall -Wextra -Werror -g
 
 MAKEFLAGS += --silent
 
-all: $(NAME)
+all: $(NAME) stub victim sample
 
 $(NAME): $(OBJ)
 	$(CC) $(OBJ) -o $(NAME)
@@ -30,8 +29,11 @@ victim:
 sample:
 	gcc -no-pie -static -o sample test/sample.c
 
+game:
+	gcc -no-pie -static -o game test/game.c
+
 clean:
-	rm -rf obj sample victim woody stub.o stub.bin
+	rm -rf obj sample victim game woody stub.o stub.bin
 	echo "object(s) cleaned."
 
 fclean: clean
