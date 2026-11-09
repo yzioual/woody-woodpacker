@@ -1,6 +1,6 @@
 NAME = woody_woodpacker
 
-SRC =   src/main.c src/parser.c
+SRC =   src/main.c src/parser.c src/chacha20.c
 
 OBJ = $(patsubst src/%.c,obj/%.o,$(SRC))
 

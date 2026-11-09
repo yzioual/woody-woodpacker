@@ -1,8 +1,10 @@
 #include "../include/woody_woodpacker.h"
 #include <sys/random.h>
+#include <string.h>
+
 
 #define KEY_SIZE (256 / 8)
-#define NONCE_SIZE 96
+#define NONCE_SIZE (96 / 8)
 #define COUNTER_START 1 // can also start at 0 but for our case it's 1
 #define ROTL(a,b) (((a) << (b)) | ((a) >> (32 - (b))))
 #define QR(a, b, c, d) (             \
@@ -52,16 +54,28 @@ uint32_t    bytes_to_word_le(const unsigned char *p) {
 }
 
 // maybe bugs in this one, don't have time to test
-void    to_words_chacha20(const unsigned char *rand_key, const unsigned char *rand_nonce, uint32_t *out) {
+uint32_t    *to_words_chacha20(const unsigned char *rand_key, const unsigned char *rand_nonce, uint32_t *out) {
     const unsigned char constant_initial_state[16] = "expand 32-byte k"; // yes it's the real constant for the algorithm.
     size_t i = 0; // to iterate throug out;
 
     for (int index = 0; index < 16; index += 4) out[i++] = bytes_to_word_le(constant_initial_state + index);
-    for (int index = 0; index < 32; index += 4) out[i++] = bytes_to_word_le(rand_key + index);
+    for (int index = 0; index < KEY_SIZE; index += 4) out[i++] = bytes_to_word_le(rand_key + index);
     out[i++] = COUNTER_START;
-    for (int index = 0; index < 24; index += 4) out[i++] = bytes_to_word_le(rand_nonce + index);
+    for (int index = 0; index < NONCE_SIZE; index += 4) out[i++] = bytes_to_word_le(rand_nonce + index);
+
+    return (out);
 }
 
+void    words_to_bytes(uint32_t *ribbon, unsigned char *out) {
+    size_t  index_ribbon = 0;
+    for (int index_out = 0; index_out < 64; index_out += 4) {
+        out[index_out] = ribbon[index_ribbon];
+        out[index_out + 1] = (ribbon[index_ribbon] >> 8) & 0xFF;
+        out[index_out + 2] = (ribbon[index_ribbon] >> 16) & 0xFF;
+        out[index_out + 3] = (ribbon[index_ribbon] >> 24) & 0xFF;
+        index_ribbon++;
+    }
+}
 
 /*
  * initial state of the algorithm = 512bits -> 16 words of 32 bits (4*4 matrix)
@@ -71,24 +85,29 @@ void    to_words_chacha20(const unsigned char *rand_key, const unsigned char *ra
  * -> 3 for nonce
  * uint32_t x[16];
 */
-char    *chacha20(unsigned char *data, size_t len) {
-    unsigned char   rand_key[KEY_SIZE]; // chacha20 key
-    unsigned char   rand_nonce[NONCE_SIZE]; // can be random or public, in our case he's random
+
+// ADD RAND_KEY TO ARG, DONT FORGET
+void    chacha20(unsigned char *data, size_t len, unsigned char *key, size_t key_len) {
+    unsigned char   rand_nonce[NONCE_SIZE + 1] = "nonce propre"; // can be random or public, in our case he's public
 
     // syscall 318 (getrandom) fills a buffer pointed with random values between 0 to 255
-    syscall(SYS_getrandom, rand_key, KEY_SIZE, 0);
-    syscall(SYS_getrandom, rand_nonce, NONCE_SIZE, 0);
+    print_key(key, key_len);
 
-    print_key(rand_key, KEY_SIZE);
+    uint32_t        words[16];
+    uint32_t        ribbon[16];
+    size_t          index = 0;
+    unsigned char   ribbon_bytes[64];
 
-    uint32_t words[16];
-    to_words_chacha20(rand_key, rand_nonce, words); // turn all of our initial state into WORDS of 32 bits
-    uint32_t ribbon[16];
-    for (int i = 0; i < -1; i++) { // ! not -1
+    to_words_chacha20(key, rand_nonce, words); // turn all of our initial state into WORDS of 32 bits
+    while (index < len) {
         chacha_block(ribbon, words);
-        // turns ribbon into 64 bytes array, more few things and it will be done
-        words[15]++;
+        words_to_bytes(ribbon, ribbon_bytes); 
+        words[12]++;
+        for (int j = 0; j < 64 && index < len; j++) {
+            data[index] ^= ribbon_bytes[j];
+            index++;
+        }
     }
-
-    return (data); // ! temporary return value
+    printf("voila : \n");
+    print_key(data, len);
 }
