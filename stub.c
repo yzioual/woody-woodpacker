@@ -1,8 +1,8 @@
 static long my_write(int fd, const void *buf, unsigned long count);
 static void my_exit(int code);
-static void xor_crypt(unsigned char *data, unsigned long len, const unsigned char *key, unsigned long key_len);
 static void jump_to(unsigned long addr, unsigned long orig_rsp, unsigned long orig_rdx);
 static long my_mprotect(unsigned long addr, unsigned long len, long prot);
+void    chacha20(unsigned char *, long unsigned int, unsigned char *);
 
 void _start(void) {
     // Capture the original rsp and rdx before compiler-generated code clobbers them.
@@ -22,10 +22,10 @@ void _start(void) {
     volatile unsigned long key_len     = 0x4444444444444444UL;  // [PATCH] key len
     volatile unsigned long orig_entry  = 0x5555555555555555UL;  // [PATCH] original e_entry
     volatile unsigned long page_addr  = 0x6666666666666666UL;  // [PATCH] page-aligned addr
-    volatile unsigned long page_len   = 0x7777777777777777UL;  //
-                                                               //
+    volatile unsigned long page_len   = 0x7777777777777777UL;
+
     my_mprotect(page_addr, page_len, 7);
-    xor_crypt((unsigned char*) target_addr, target_len, (unsigned char*) key_addr, key_len);
+    chacha20((unsigned char*) target_addr, target_len, (unsigned char*) key_addr);
     jump_to(orig_entry, orig_rsp, orig_rdx);
 }
 
@@ -50,13 +50,6 @@ static void my_exit(int code)
         : "memory"
     );
     __builtin_unreachable();
-}
-
-static void xor_crypt(unsigned char *data, unsigned long len, const unsigned char *key, unsigned long key_len)
-{
-    for (unsigned long i = 0; i < len; i++) {
-        data[i] ^= key[i % key_len];
-    }
 }
 
 static void jump_to(unsigned long addr, unsigned long orig_rsp, unsigned long orig_rdx)

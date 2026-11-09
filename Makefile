@@ -20,7 +20,9 @@ obj/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 stub:
-	gcc -nostdlib -static -ffreestanding -fno-stack-protector -fno-pic -c stub.c -o stub.o
+	gcc -nostdlib -static -ffreestanding -fno-stack-protector -fno-pic -c stub.c -o stub_main.o
+	gcc -nostdlib -static -ffreestanding -fno-stack-protector -fno-pic -c src/chacha20.c -o chacha20_stub.o
+	ld -r stub_main.o chacha20_stub.o -o stub.o
 	objcopy -O binary --only-section=.text stub.o stub.bin
 
 victim:
@@ -33,7 +35,7 @@ game:
 	gcc -no-pie -static -o game test/game.c
 
 clean:
-	rm -rf obj sample victim game woody stub.o stub.bin
+	rm -rf obj sample victim game woody stub.o stub.bin stub_main.o chacha20_stub.o
 	echo "object(s) cleaned."
 
 fclean: clean

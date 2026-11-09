@@ -9,6 +9,8 @@
 #include <sys/mman.h>
 #define PAGE_SIZE 0x1000
 
+#define KEY_SIZE (256 / 8)
+
 static  size_t find_placeholder(unsigned char *buf, size_t len, uint64_t marker) {
     for (size_t i = 0; i + 8 <= len; i++) {
         if (memcmp(buf + i, &marker, 8) == 0)
@@ -33,13 +35,6 @@ int write_woody(unsigned char *data, size_t len) {
 
     close(fd);
     return 0;
-}
-
-static void encrypt(unsigned char *data, size_t len, const unsigned char *key, size_t key_len)
-{
-    for (size_t i = 0; i < len; i++) {
-        data[i] ^= key[i % key_len];
-    }
 }
 
 static void patch_u64(unsigned char *buf, size_t offset, uint64_t value) {
@@ -125,10 +120,12 @@ int main(int argc, char **argv) {
     unsigned char *target = data + target_ph->p_offset + entry_offset_in_segment;
     size_t target_len = target_ph->p_filesz - entry_offset_in_segment;
 
-    unsigned char key[] = "mysecretkey";
+    unsigned char key[KEY_SIZE + 1] = {0};
+    syscall(SYS_getrandom, key, KEY_SIZE, 0);
+
     size_t key_len = sizeof(key) - 1;
 
-    encrypt(target, target_len, key, key_len);
+    chacha20(target, target_len, key);
 
     uint64_t page_addr = runtime_target_addr & ~((uint64_t)PAGE_SIZE - 1);
     uint64_t page_end   = (runtime_target_addr + target_len + PAGE_SIZE - 1) & ~((uint64_t)PAGE_SIZE - 1);

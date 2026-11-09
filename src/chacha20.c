@@ -14,13 +14,13 @@
 	c += d, b ^= c, b = ROTL(b,  7))
 #define ROUNDS 20
 
-void    print_key(const unsigned char *str, size_t size) {
-    printf("key :");
-    for (size_t i = 0; i < size; i++) {
-        printf("%02X", str[i]);
-    }
-    printf("\n");
-}
+// void    print_key(const unsigned char *str, size_t size) {
+//     printf("key :");
+//     for (size_t i = 0; i < size; i++) {
+//         printf("%02X", str[i]);
+//     }
+//     printf("\n");
+// }
 
 
 // function not mine -> wikipedia page
@@ -53,12 +53,13 @@ uint32_t    bytes_to_word_le(const unsigned char *p) {
          | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
 }
 
-// maybe bugs in this one, don't have time to test
 uint32_t    *to_words_chacha20(const unsigned char *rand_key, const unsigned char *rand_nonce, uint32_t *out) {
-    const unsigned char constant_initial_state[16] = "expand 32-byte k"; // yes it's the real constant for the algorithm.
-    size_t i = 0; // to iterate throug out;
+    size_t          i = 0; // to iterate throug out;
 
-    for (int index = 0; index < 16; index += 4) out[i++] = bytes_to_word_le(constant_initial_state + index);
+    out[i++] = 0x61707865;
+    out[i++] = 0x3320646e;
+    out[i++] = 0x79622d32;
+    out[i++] = 0x6b206574;
     for (int index = 0; index < KEY_SIZE; index += 4) out[i++] = bytes_to_word_le(rand_key + index);
     out[i++] = COUNTER_START;
     for (int index = 0; index < NONCE_SIZE; index += 4) out[i++] = bytes_to_word_le(rand_nonce + index);
@@ -87,11 +88,8 @@ void    words_to_bytes(uint32_t *ribbon, unsigned char *out) {
 */
 
 // ADD RAND_KEY TO ARG, DONT FORGET
-void    chacha20(unsigned char *data, size_t len, unsigned char *key, size_t key_len) {
+void    chacha20(unsigned char *data, size_t len, unsigned char *key) {
     unsigned char   rand_nonce[NONCE_SIZE + 1] = "nonce propre"; // can be random or public, in our case he's public
-
-    // syscall 318 (getrandom) fills a buffer pointed with random values between 0 to 255
-    print_key(key, key_len);
 
     uint32_t        words[16];
     uint32_t        ribbon[16];
@@ -108,6 +106,5 @@ void    chacha20(unsigned char *data, size_t len, unsigned char *key, size_t key
             index++;
         }
     }
-    printf("voila : \n");
-    print_key(data, len);
+
 }
