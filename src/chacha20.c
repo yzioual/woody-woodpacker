@@ -55,7 +55,7 @@ uint32_t    bytes_to_word_le(const unsigned char *p) {
 
 // maybe bugs in this one, don't have time to test
 uint32_t    *to_words_chacha20(const unsigned char *rand_key, const unsigned char *rand_nonce, uint32_t *out) {
-    const unsigned char constant_initial_state[16] = "expand 32-byte k"; // yes it's the real constant for the algorithm.
+    const unsigned char constant_initial_state[17] = "expand 32-byte k"; // yes it's the real constant for the algorithm.
     size_t i = 0; // to iterate throug out;
 
     for (int index = 0; index < 16; index += 4) out[i++] = bytes_to_word_le(constant_initial_state + index);
