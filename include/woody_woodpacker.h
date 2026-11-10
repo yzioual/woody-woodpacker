@@ -7,11 +7,11 @@
 #include <sys/syscall.h>
 #include <stdint.h>
 
-// import libft here ? I don't think we should at least for now :)
+#define KEY_SIZE (256 / 8)
 
 #define eprintf(...) fprintf (stderr, __VA_ARGS__) // used to print on stderr
 
-void    chacha20(unsigned char *, size_t, unsigned char *, size_t);
+void    chacha20(unsigned char *, unsigned int, unsigned char *);
 size_t get_file_size(int);
 unsigned char* parse_elf(const char *, size_t*);
 unsigned char *map_file(int, size_t*);

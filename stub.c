@@ -3,6 +3,19 @@ static void my_exit(int code);
 static void xor_crypt(unsigned char *data, unsigned long len, const unsigned char *key, unsigned long key_len);
 static void jump_to(unsigned long addr, unsigned long orig_rsp, unsigned long orig_rdx);
 static long my_mprotect(unsigned long addr, unsigned long len, long prot);
+static void chacha20(unsigned char *data, unsigned int len, unsigned char *key);
+
+#include <stdint.h>
+#define KEY_SIZE (256 / 8)
+#define NONCE_SIZE (96 / 8)
+#define COUNTER_START 1 // can also start at 0 but for our case it's 1
+#define ROTL(a,b) (((a) << (b)) | ((a) >> (32 - (b))))
+#define QR(a, b, c, d) (             \
+	a += b, d ^= a, d = ROTL(d, 16), \
+	c += d, b ^= c, b = ROTL(b, 12), \
+	a += b, d ^= a, d = ROTL(d,  8), \
+	c += d, b ^= c, b = ROTL(b,  7))
+#define ROUNDS 20
 
 void _start(void) {
     // Capture the original rsp and rdx before compiler-generated code clobbers them.
@@ -25,9 +38,80 @@ void _start(void) {
     volatile unsigned long page_len   = 0x7777777777777777UL;  //
                                                                //
     my_mprotect(page_addr, page_len, 7);
-    xor_crypt((unsigned char*) target_addr, target_len, (unsigned char*) key_addr, key_len);
+    chacha20((unsigned char*) target_addr, target_len, (unsigned char*) key_addr);
     jump_to(orig_entry, orig_rsp, orig_rdx);
 }
+
+static void    chacha_block(uint32_t out[16], uint32_t const in[16])
+{
+	int         i;
+	uint32_t    x[16];
+
+	for (i = 0; i < 16; ++i)
+		x[i] = in[i];
+	for (i = 0; i < ROUNDS; i += 2) {
+		QR(x[0], x[4], x[ 8], x[12]); // column 1
+		QR(x[1], x[5], x[ 9], x[13]); // column 2
+		QR(x[2], x[6], x[10], x[14]); // column 3
+		QR(x[3], x[7], x[11], x[15]); // column 4
+		QR(x[0], x[5], x[10], x[15]); // diagonal 1 (main diagonal)
+		QR(x[1], x[6], x[11], x[12]); // diagonal 2
+		QR(x[2], x[7], x[ 8], x[13]); // diagonal 3
+		QR(x[3], x[4], x[ 9], x[14]); // diagonal 4
+	}
+	for (i = 0; i < 16; ++i)
+		out[i] = x[i] + in[i];
+}
+
+static uint32_t    bytes_to_word_le(const unsigned char *p) {
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8)
+         | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+
+static uint32_t    *to_words_chacha20(const unsigned char *rand_key, const unsigned char *rand_nonce, uint32_t *out) {
+    const unsigned char constant_initial_state[17] = "expand 32-byte k";
+    unsigned int i = 0; 
+
+    for (int index = 0; index < 16; index += 4) out[i++] = bytes_to_word_le(constant_initial_state + index);
+    for (int index = 0; index < KEY_SIZE; index += 4) out[i++] = bytes_to_word_le(rand_key + index);
+    out[i++] = COUNTER_START;
+    for (int index = 0; index < NONCE_SIZE; index += 4) out[i++] = bytes_to_word_le(rand_nonce + index);
+
+    return (out);
+}
+
+static void    words_to_bytes(uint32_t *ribbon, unsigned char *out) {
+    unsigned int  index_ribbon = 0;
+    for (int index_out = 0; index_out < 64; index_out += 4) {
+        out[index_out] = ribbon[index_ribbon];
+        out[index_out + 1] = (ribbon[index_ribbon] >> 8) & 0xFF;
+        out[index_out + 2] = (ribbon[index_ribbon] >> 16) & 0xFF;
+        out[index_out + 3] = (ribbon[index_ribbon] >> 24) & 0xFF;
+        index_ribbon++;
+    }
+}
+
+static void    chacha20(unsigned char *data, unsigned int len, unsigned char *key) {
+    unsigned char   rand_nonce[NONCE_SIZE + 1] = "nonce propre";
+
+    uint32_t        words[16];
+    uint32_t        ribbon[16];
+    unsigned int          index = 0;
+    unsigned char   ribbon_bytes[64];
+
+    to_words_chacha20(key, rand_nonce, words);
+    while (index < len) {
+        chacha_block(ribbon, words);
+        words_to_bytes(ribbon, ribbon_bytes); 
+        words[12]++;
+        for (int j = 0; j < 64 && index < len; j++) {
+            data[index] ^= ribbon_bytes[j];
+            index++;
+        }
+    }
+}
+
+
 
 static long my_write(int fd, const void *buf, unsigned long count)
 {
@@ -50,13 +134,6 @@ static void my_exit(int code)
         : "memory"
     );
     __builtin_unreachable();
-}
-
-static void xor_crypt(unsigned char *data, unsigned long len, const unsigned char *key, unsigned long key_len)
-{
-    for (unsigned long i = 0; i < len; i++) {
-        data[i] ^= key[i % key_len];
-    }
 }
 
 static void jump_to(unsigned long addr, unsigned long orig_rsp, unsigned long orig_rdx)
