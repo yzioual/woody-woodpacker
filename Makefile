@@ -20,7 +20,7 @@ obj/%.o: src/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 stub:
-	gcc -nostdlib -static -ffreestanding -fno-stack-protector -fno-pic -c stub.c -o stub.o
+	gcc -nostdlib -static -ffreestanding -fno-stack-protector -fno-pic -c src/stub.c -o stub.o
 	objcopy -O binary --only-section=.text stub.o stub.bin
 
 victim:
