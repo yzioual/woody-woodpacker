@@ -1,11 +1,11 @@
 NAME = woody_woodpacker
 
-SRC =   src/main.c src/parser.c src/chacha20.c
+SRC =   src/main.c src/parser.c src/chacha20.c src/lzss.c
 
 OBJ = $(patsubst src/%.c,obj/%.o,$(SRC))
 
 CC = cc
-CFLAGS = -Wall -Wextra -Werror -g
+CFLAGS = -Wall -Wextra -Werror -g -MMD -MP -Iinclude
 
 MAKEFLAGS += --silent
 
@@ -41,5 +41,6 @@ fclean: clean
 
 re: fclean all
 
+-include $(DEP)
 
 .PHONY: all clean fclean re

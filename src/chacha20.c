@@ -1,15 +1,4 @@
-#include <stdint.h>
-#include "../include/woody_woodpacker.h"
-
-#define NONCE_SIZE (96 / 8)
-#define COUNTER_START 1 // can also start at 0 but for our case it's 1
-#define ROTL(a,b) (((a) << (b)) | ((a) >> (32 - (b))))
-#define QR(a, b, c, d) (             \
-	a += b, d ^= a, d = ROTL(d, 16), \
-	c += d, b ^= c, b = ROTL(b, 12), \
-	a += b, d ^= a, d = ROTL(d,  8), \
-	c += d, b ^= c, b = ROTL(b,  7))
-#define ROUNDS 20
+#include "woody_woodpacker.h"
 
 // function not mine -> wikipedia page
 void    chacha_block(uint32_t out[16], uint32_t const in[16])

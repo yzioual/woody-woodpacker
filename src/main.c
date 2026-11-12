@@ -1,13 +1,4 @@
-#include "../include/woody_woodpacker.h"
-#include <elf.h>
-#include <fcntl.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/mman.h>
-#define PAGE_SIZE 0x1000
+#include "woody_woodpacker.h"
 
 static  size_t find_placeholder(unsigned char *buf, size_t len, uint64_t marker) {
     for (size_t i = 0; i + 8 <= len; i++) {
@@ -61,9 +52,10 @@ int main(int argc, char **argv) {
     long off_orig_entry = find_placeholder(stub, stub_file_size, 0x5555555555555555ULL);
     long off_page_addr = find_placeholder(stub, stub_file_size, 0x6666666666666666ULL);
     long off_page_len  = find_placeholder(stub, stub_file_size, 0x7777777777777777ULL);
+    long off_orig_target_len = find_placeholder(stub, stub_file_size, 0x8888888888888888ULL);
 
-    if (off_page_addr < 0 || off_page_len < 0) {
-        fprintf(stderr, "failed to locate mprotect placeholders in stub\n");
+    if (off_page_addr < 0 || off_page_len < 0 || off_orig_target_len < 0) {
+        fprintf(stderr, "failed to locate mprotect/compression placeholders in stub\n");
         exit(EXIT_FAILURE);
     }
 
@@ -117,15 +109,36 @@ int main(int argc, char **argv) {
 
     unsigned char *target = data + target_ph->p_offset + entry_offset_in_segment;
     size_t target_len = target_ph->p_filesz - entry_offset_in_segment;
+    size_t orig_target_len = target_len;
+
+    /* --- LZSS compression (before encryption) --- */
+    unsigned long compressed_len = 0;
+    unsigned char *compressed = lzss_compress(target, target_len, &compressed_len);
+    int is_compressed = 0;
 
     unsigned char key[KEY_SIZE + 1] = {0};
     syscall(SYS_getrandom, key, KEY_SIZE, 0);
-
     size_t key_len = sizeof(key) - 1;
-    chacha20(target, target_len, key);
 
+    if (compressed && compressed_len < target_len) {
+        is_compressed = 1;
+        /* encrypt the compressed blob (separate buffer) */
+        chacha20(compressed, compressed_len, key);
+        /* zero out the original .text — stub will decompress from its own segment */
+        memset(target, 0, target_len);
+        target_len = compressed_len;
+        printf("compressed %zu -> %lu bytes (%.1f%%)\n",
+               orig_target_len, compressed_len,
+               100.0 * compressed_len / orig_target_len);
+    } else {
+        /* incompressible → encrypt .text in place (original behaviour) */
+        chacha20(target, target_len, key);
+        printf("compression skipped (no size reduction)\n");
+    }
+
+    /* mprotect range must cover the FULL original extent */
     uint64_t page_addr = runtime_target_addr & ~((uint64_t)PAGE_SIZE - 1);
-    uint64_t page_end   = (runtime_target_addr + target_len + PAGE_SIZE - 1) & ~((uint64_t)PAGE_SIZE - 1);
+    uint64_t page_end   = (runtime_target_addr + orig_target_len + PAGE_SIZE - 1) & ~((uint64_t)PAGE_SIZE - 1);
     uint64_t page_len   = page_end - page_addr;
 
     patch_u64(stub, off_page_addr, page_addr);
@@ -133,13 +146,15 @@ int main(int argc, char **argv) {
 
     patch_u64(stub, off_target, runtime_target_addr);
     patch_u64(stub, off_target_len, target_len);
+    patch_u64(stub, off_orig_target_len, orig_target_len);
 
     uint64_t key_rtime_addr = stub_vaddr + stub_file_size;
     patch_u64(stub, off_key,        key_rtime_addr);
     patch_u64(stub, off_key_len,    key_len);
     patch_u64(stub, off_orig_entry, ehdr->e_entry);
 
-    size_t stub_blob_len = stub_file_size + key_len;
+    size_t compressed_blob_len = is_compressed ? target_len : 0;
+    size_t stub_blob_len = stub_file_size + key_len + compressed_blob_len;
     uint64_t stub_file_offset = (filesz + PAGE_SIZE - 1) & ~((uint64_t)PAGE_SIZE - 1);
 
     int old_phnum = ehdr->e_phnum;
@@ -156,7 +171,7 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    // 1. copy original file content (headers + all original segments, with encrypted code)
+    // 1. copy original file content (headers + all original segments)
     memcpy(final_piece, data, filesz);
     memset(final_piece + filesz, 0, stub_file_offset - filesz);
 
@@ -164,6 +179,14 @@ int main(int argc, char **argv) {
     memcpy(final_piece + stub_file_offset, stub, stub_file_size);
     // 3. copy the key right after the stub
     memcpy(final_piece + stub_file_offset + stub_file_size, key, key_len);
+    // 4. copy the compressed+encrypted blob right after the key (if compressed)
+    if (is_compressed && compressed) {
+        memcpy(final_piece + stub_file_offset + stub_file_size + key_len,
+               compressed, compressed_blob_len);
+    }
+
+    if (compressed)
+        free(compressed);
 
     Elf64_Phdr *old_phdrs_in_final = (Elf64_Phdr *)(final_piece + ehdr->e_phoff);
     Elf64_Phdr *new_phdr_table = (Elf64_Phdr *)(final_piece + new_phdr_offset);
@@ -179,7 +202,7 @@ int main(int argc, char **argv) {
     size_t total_appended_len = stub_blob_len + phdr_table_size;
     stub_phdr->p_filesz = total_appended_len;
     stub_phdr->p_memsz  = total_appended_len;
-    stub_phdr->p_flags  = PF_R | PF_X;
+    stub_phdr->p_flags  = PF_R | PF_W | PF_X;
     stub_phdr->p_align  = PAGE_SIZE;
 
     Elf64_Ehdr *final_ehdr = (Elf64_Ehdr *)final_piece;

@@ -4,6 +4,8 @@ static void xor_crypt(unsigned char *data, unsigned long len, const unsigned cha
 static void jump_to(unsigned long addr, unsigned long orig_rsp, unsigned long orig_rdx);
 static long my_mprotect(unsigned long addr, unsigned long len, long prot);
 static void chacha20(unsigned char *data, unsigned int len, unsigned char *key);
+static void lzss_decompress(const unsigned char *src, unsigned long src_len,
+                            unsigned char *dst, unsigned long dst_len);
 
 #include <stdint.h>
 #define KEY_SIZE (256 / 8)
@@ -36,9 +38,21 @@ void _start(void) {
     volatile unsigned long orig_entry  = 0x5555555555555555UL;  // [PATCH] original e_entry
     volatile unsigned long page_addr  = 0x6666666666666666UL;  // [PATCH] page-aligned addr
     volatile unsigned long page_len   = 0x7777777777777777UL;  //
+    volatile unsigned long orig_target_len = 0x8888888888888888UL; // [PATCH] original uncompressed len
                                                                //
     my_mprotect(page_addr, page_len, 7);
-    chacha20((unsigned char*) target_addr, target_len, (unsigned char*) key_addr);
+
+    if (orig_target_len > target_len) {
+        /* compressed path: blob lives in stub segment right after the key */
+        unsigned long compressed_addr = key_addr + key_len;
+        chacha20((unsigned char *) compressed_addr, target_len, (unsigned char *) key_addr);
+        lzss_decompress((unsigned char *) compressed_addr, target_len,
+                        (unsigned char *) target_addr, orig_target_len);
+    } else {
+        /* uncompressed path: encrypted data is in .text, decrypt in place */
+        chacha20((unsigned char *) target_addr, target_len, (unsigned char *) key_addr);
+    }
+
     jump_to(orig_entry, orig_rsp, orig_rdx);
 }
 
@@ -159,4 +173,42 @@ static long my_mprotect(unsigned long addr, unsigned long len, long prot)
         : "rcx", "r11", "memory"
     );
     return ret;
+}
+
+/*
+ * LZSS Decompressor — mirrors the encoder in src/lzss.c
+ *
+ *   flag byte  →  8 items
+ *     bit = 1  →  1 literal byte
+ *     bit = 0  →  2 bytes  (12-bit offset | 4-bit length+3)
+ */
+#define LZSS_MIN_MATCH 3
+
+static void lzss_decompress(const unsigned char *src, unsigned long src_len,
+                             unsigned char *dst, unsigned long dst_len)
+{
+    unsigned long si = 0, di = 0;
+
+    while (si < src_len && di < dst_len) {
+        unsigned char flags = src[si++];
+
+        for (int bit = 0; bit < 8 && si < src_len && di < dst_len; bit++) {
+            if (flags & (1 << bit)) {
+                /* literal */
+                dst[di++] = src[si++];
+            } else {
+                if (si + 1 >= src_len)
+                    return;
+                unsigned int b0 = src[si++];
+                unsigned int b1 = src[si++];
+                unsigned int offset = ((b0 << 4) | (b1 >> 4)) + 1;
+                unsigned int length = (b1 & 0x0F) + LZSS_MIN_MATCH;
+
+                for (unsigned int k = 0; k < length && di < dst_len; k++) {
+                    dst[di] = dst[di - offset];
+                    di++;
+                }
+            }
+        }
+    }
 }

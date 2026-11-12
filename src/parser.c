@@ -1,12 +1,4 @@
-#include "../include/woody_woodpacker.h"
-#include <elf.h>
-#include <fcntl.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <sys/syscall.h>
-#include <sys/mman.h>
+#include "woody_woodpacker.h"
 
 size_t get_file_size(int fd) {
     if (fd < 0) {
