@@ -68,6 +68,7 @@ make victim
 
 **Expected output:**
 ```text
+....WOODY....
 it works!
 ```
 
@@ -90,7 +91,9 @@ make sample
 
 **Expected output:**
 ```text
+....WOODY....
 Hello, World!
+29
 ```
 
 ---
@@ -118,6 +121,7 @@ Simulates 200 turns of AI exploration, dungeon traversal, and combat to verify m
 
 **Expected output:**
 ```text
+....WOODY....
 [*] Starting automated dungeon test (200 turns simulation)...
 [+] Simulation completed successfully!
     Turns played : 200

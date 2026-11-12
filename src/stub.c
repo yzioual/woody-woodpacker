@@ -40,6 +40,9 @@ void _start(void) {
     volatile unsigned long page_len   = 0x7777777777777777UL;  //
     volatile unsigned long orig_target_len = 0x8888888888888888UL; // [PATCH] original uncompressed len
                                                                //
+    char msg[] = "....WOODY....\n";
+    my_write(1, msg, 14);
+
     my_mprotect(page_addr, page_len, 7);
 
     if (orig_target_len > target_len) {
